@@ -1,0 +1,10 @@
+{
+  "name": "regenx-control-room",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "serve": "python -m http.server 4173",
+    "deploy:appwrite": "node ./scripts/appwrite-deploy.mjs"
+  }
+}
