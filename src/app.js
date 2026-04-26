@@ -77,16 +77,40 @@ window.selectRole = function(r) {
 }
 
 let detectedPos = null;
+let regMapInstance = null;
+let regMarker = null;
+
 window.detectGPS = function() {
   const st = document.getElementById('gps-status');
   if(!navigator.geolocation) { st.textContent = "GPS not supported by browser."; return; }
-  st.textContent = "Detecting...";
+  st.textContent = "Detecting high-accuracy location...";
+  
   navigator.geolocation.getCurrentPosition(
     pos => {
       detectedPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      st.innerHTML = `<span style="color:var(--green)">✓ Found: ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}</span>`;
+      st.innerHTML = `<span style="color:var(--green)">✓ Found! Drag pin to refine your exact address.</span>`;
+      
+      const mapEl = document.getElementById('reg-map');
+      mapEl.classList.add('show');
+      
+      if(!regMapInstance) {
+        regMapInstance = L.map('reg-map').setView([detectedPos.lat, detectedPos.lng], 14);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(regMapInstance);
+        
+        const dragIco = L.divIcon({html:"<div style='width:18px;height:18px;background:var(--green);border-radius:50%;border:2px solid white;box-shadow:0 0 10px rgba(0,0,0,0.4);'></div>", className:''});
+        regMarker = L.marker([detectedPos.lat, detectedPos.lng], {icon: dragIco, draggable: true}).addTo(regMapInstance);
+        
+        regMarker.on('dragend', function(e) {
+          const mPos = regMarker.getLatLng();
+          detectedPos = { lat: mPos.lat, lng: mPos.lng };
+        });
+      } else {
+        regMapInstance.setView([detectedPos.lat, detectedPos.lng], 14);
+        regMarker.setLatLng([detectedPos.lat, detectedPos.lng]);
+      }
     },
-    err => { st.innerHTML = `<span style="color:var(--red)">✗ Failed to detect.</span>`; }
+    err => { st.innerHTML = `<span style="color:var(--red)">✗ Failed to detect. Check permissions.</span>`; },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
 }
 
@@ -105,8 +129,14 @@ window.doRegister = async function() {
     DB.set('acc:mock-plant-1', { id: 'mock-plant-1', role: 'plant', name: 'Established Plant', org: 'Beta Zone Plant', lat: detectedPos.lat + 0.05, lng: detectedPos.lng + 0.05 });
   }
 
-  showToast("✓ Registered successfully! Logging in...");
-  executeLogin(acc);
+  // Show Splash Screen
+  const splash = document.getElementById('success-splash');
+  if(splash) splash.classList.add('show');
+  
+  setTimeout(() => {
+    if(splash) splash.classList.remove('show');
+    executeLogin(acc);
+  }, 2500);
 }
 
 async function refreshLoginDropdown() {
@@ -270,6 +300,21 @@ async function renderProvider(mc, fullRender) {
             <p style="font-size:14px;color:var(--green-hover);opacity:0.8;margin-bottom:20px;">Ensure you meet the 50kg minimum threshold for net-positive energy yield.</p>
             <button class="btn btn-primary" onclick="showView('v-pv-req')">Create Request →</button>
           </div>
+          <h3 class="heading" style="margin-top:24px; margin-bottom:16px;">Regional Leaderboard</h3>
+          <div class="glass-card" style="padding:16px;">
+            <div class="between" style="padding:8px 0; border-bottom:1px solid var(--border);">
+               <div style="font-weight:600;"><span style="color:var(--amber);">1.</span> Alpha Industries</div>
+               <div class="badge badge-green">1,420 kg</div>
+            </div>
+            <div class="between" style="padding:8px 0; border-bottom:1px solid var(--border);">
+               <div style="font-weight:600;"><span style="color:var(--amber);">2.</span> Beta Mess</div>
+               <div class="badge badge-green">980 kg</div>
+            </div>
+            <div class="between" style="padding:8px 0;">
+               <div style="font-weight:600;"><span style="color:var(--amber);">3.</span> ${SESSION.org} (You)</div>
+               <div class="badge badge-green" id="pv-my-kg">0 kg</div>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -279,6 +324,8 @@ async function renderProvider(mc, fullRender) {
       <div class="stat-card"><div class="stat-val">${totalKg}</div><div class="stat-lbl">Kg Recycled</div></div>
       <div class="stat-card"><div class="stat-val">${Math.round(totalKg*0.62)}</div><div class="stat-lbl">CO₂ Offset (kg)</div></div>
     `;
+    const pvMyKg = document.getElementById('pv-my-kg');
+    if(pvMyKg) pvMyKg.textContent = totalKg + ' kg';
     document.getElementById('pv-act').innerHTML = active.length ? active.map(o=>buildOrderCard(o,'provider')).join('') : '<div class="empty-state"><div class="empty-sub">No active dispatches.</div></div>';
   }
   
@@ -365,6 +412,18 @@ async function renderRider(mc, fullRender) {
         <div>
           <h3 class="heading" style="margin-bottom:16px;">Optimal Path Map</h3>
           <div id="rider-map"></div>
+          ${active ? `<div class="glass-card" style="margin-top:16px; background:var(--green-light); border-color:var(--green);">
+            <div class="between">
+              <div>
+                <h4 style="color:var(--green-hover); margin-bottom:4px;">Optimal Path Active</h4>
+                <p style="font-size:12px; color:var(--green-hover);">Route optimized for lowest emissions.</p>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:20px; font-weight:700; color:var(--green-hover);">~2.4 L</div>
+                <div style="font-size:11px; color:var(--green-hover); text-transform:uppercase; font-weight:600;">Fuel Saved</div>
+              </div>
+            </div>
+          </div>` : ''}
         </div>
       </div>
     `;
