@@ -254,10 +254,55 @@ function startGreenWall() {
 
 window.buyMarketItem = function(price, name) {
   if((SESSION.tokens || 0) < price) return showToast("⚠ Insufficient $RGX balance.");
-  SESSION.tokens -= price;
+  
+  const hash = '0x' + Array.from({length:40}, () => Math.floor(Math.random()*16).toString(16)).join('');
+  const html = `
+    <h3 class="modal-title">Web3 Smart Contract Interaction</h3>
+    <p class="modal-sub">Minting <strong>${name}</strong> to the ReGen Layer-2 Network...</p>
+    <div style="background:#0a0a0a; color:#0f0; font-family:monospace; padding:16px; border-radius:8px; font-size:12px; margin-bottom:16px; border:1px solid #333;">
+       <div>> Initializing secure connection...</div>
+       <div style="animation: fadeIn 1s 0.5s both">> Deducting ${price} $RGX tokens...</div>
+       <div style="animation: fadeIn 1s 1.5s both">> Minting verifiable credential...</div>
+       <div style="animation: fadeIn 1s 2.5s both">> Tx Hash: ${hash}</div>
+       <div style="animation: fadeIn 1s 3.5s both; color:#fff;">> <strong>SUCCESS. Block confirmed.</strong></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary btn-full" id="btn-close-mint" disabled onclick="closeModal()">Minting...</button>
+    </div>
+  `;
+  document.getElementById('modal-box').innerHTML = html;
+  document.getElementById('modal').classList.add('open');
+  
+  setTimeout(() => {
+    SESSION.tokens -= price;
+    DB.set('acc:' + SESSION.id, SESSION);
+    document.getElementById('token-balance').textContent = SESSION.tokens;
+    const b = document.getElementById('btn-close-mint');
+    if(b) { b.disabled = false; b.textContent = "Close & Claim Asset"; }
+    refreshCurrentView(true);
+  }, 3500);
+}
+
+window.stakeTokens = function() {
+  const amt = parseInt(prompt("How many $RGX tokens would you like to stake in the Community Digester Fund?"));
+  if(!amt || isNaN(amt) || amt <= 0) return;
+  if((SESSION.tokens || 0) < amt) return showToast("⚠ Insufficient balance to stake.");
+  SESSION.tokens -= amt;
+  SESSION.staked = (SESSION.staked || 0) + amt;
   DB.set('acc:' + SESSION.id, SESSION);
   document.getElementById('token-balance').textContent = SESSION.tokens;
-  showToast(`✓ Redeemed ${name}!`);
+  showToast(`✓ Successfully staked ${amt} $RGX. Earning 12% APY.`);
+  refreshCurrentView(true);
+}
+
+window.fundProject = function() {
+  if((SESSION.tokens || 0) < 500) return showToast("⚠ Insufficient balance. Need 500 $RGX.");
+  SESSION.tokens -= 500;
+  DB.set('acc:' + SESSION.id, SESSION);
+  const cur = DB.get('global-fund') || 45200;
+  DB.set('global-fund', cur + 500);
+  document.getElementById('token-balance').textContent = SESSION.tokens;
+  showToast("✓ Contributed 500 $RGX to the Amazon Reforestation Initiative!");
   refreshCurrentView(true);
 }
 
@@ -399,26 +444,73 @@ function buildOrderCard(o, role) {
 async function refreshCurrentView(fullRender = false) {
   const mc = document.getElementById('main-content');
   if (currentView === 'v-market') {
+    const globalFunded = DB.get('global-fund') || 45200;
+    const staked = SESSION.staked || 0;
+    const totalStakedGlobal = 1250000 + staked;
+
     if(fullRender) mc.innerHTML = `
       <div class="between" style="margin-bottom:24px;">
-        <h3 class="heading">ReGen Carbon Exchange</h3>
-        <div class="badge badge-amber" style="font-size:14px; padding:6px 12px;">Your Balance: ${SESSION.tokens || 0} $RGX</div>
+        <h3 class="heading">DeFi Carbon Exchange Hub</h3>
+        <div class="badge badge-amber" style="font-size:14px; padding:6px 12px;">Wallet Balance: ${SESSION.tokens || 0} $RGX</div>
       </div>
+      
+      <div class="two-col" style="margin-bottom:32px;">
+        <div class="glass-card" style="border-color:var(--blue); padding:24px;">
+           <div class="between" style="margin-bottom:16px;">
+             <div>
+               <h4 style="margin-bottom:4px; font-size:18px;">DeFi Token Staking</h4>
+               <p style="font-size:13px; color:var(--text-muted);">Lock your tokens in the Community Digester Fund to earn sustainable yield.</p>
+             </div>
+             <div style="text-align:right;">
+               <div style="font-size:24px; font-weight:700; color:var(--blue);">12% <span style="font-size:14px">APY</span></div>
+             </div>
+           </div>
+           <div class="between" style="margin-bottom:24px; background:var(--surface); padding:16px; border-radius:12px; border:1px solid var(--border);">
+             <div>
+               <div style="font-size:12px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Your Staked Balance</div>
+               <div style="font-size:20px; font-weight:700;">${staked} $RGX</div>
+             </div>
+             <div style="text-align:right;">
+               <div style="font-size:12px; text-transform:uppercase; color:var(--text-muted); font-weight:700;">Network TVL</div>
+               <div style="font-size:20px; font-weight:700; color:var(--green);">${totalStakedGlobal.toLocaleString()} $RGX</div>
+             </div>
+           </div>
+           <button class="btn btn-primary btn-full" style="background:var(--blue); border-color:var(--blue);" onclick="stakeTokens()">Stake Tokens</button>
+        </div>
+        
+        <div class="glass-card" style="border-color:var(--green); padding:24px;">
+           <h4 style="margin-bottom:4px; font-size:18px;">Global Impact Crowdfunding</h4>
+           <p style="font-size:13px; color:var(--text-muted); margin-bottom:24px;">Contribute to massive global projects. When the pool hits 100%, real-world action is executed.</p>
+           
+           <div style="margin-bottom:8px; font-weight:700;">Amazon Reforestation Initiative</div>
+           <div class="between" style="font-size:12px; margin-bottom:4px; color:var(--text-muted);">
+             <span>${globalFunded.toLocaleString()} $RGX</span>
+             <span>Goal: 100,000 $RGX</span>
+           </div>
+           <div style="width:100%; height:12px; background:var(--border); border-radius:6px; overflow:hidden; margin-bottom:24px;">
+             <div style="width:${Math.min((globalFunded/100000)*100, 100)}%; height:100%; background:var(--green); border-radius:6px; transition:width 1s;"></div>
+           </div>
+           
+           <button class="btn btn-primary btn-full" onclick="fundProject()">Fund with 500 $RGX</button>
+        </div>
+      </div>
+
+      <h3 class="heading" style="margin-bottom:16px;">Web3 NFT Assets</h3>
       <div class="market-grid">
          <div class="market-card">
-           <div class="mc-icon">📜</div><div class="mc-title">CSR Certificate</div>
+           <div class="mc-icon">📜</div><div class="mc-title">CSR Certificate NFT</div>
            <div class="mc-price">5,000 $RGX</div>
-           <button class="btn btn-primary btn-full" onclick="buyMarketItem(5000, 'CSR Certificate')">Redeem</button>
+           <button class="btn btn-primary btn-full" onclick="buyMarketItem(5000, 'CSR Certificate NFT')">Mint to Blockchain</button>
          </div>
          <div class="market-card">
-           <div class="mc-icon">🌲</div><div class="mc-title">Plant 10 Trees</div>
-           <div class="mc-price">2,000 $RGX</div>
-           <button class="btn btn-primary btn-full" onclick="buyMarketItem(2000, 'Plant Trees')">Donate</button>
-         </div>
-         <div class="market-card">
-           <div class="mc-icon">🗑️</div><div class="mc-title">Smart Bin Sensor</div>
+           <div class="mc-icon">🗑️</div><div class="mc-title">Smart Bin Hardware</div>
            <div class="mc-price">10,000 $RGX</div>
-           <button class="btn btn-primary btn-full" onclick="buyMarketItem(10000, 'Smart Bin Sensor')">Claim</button>
+           <button class="btn btn-primary btn-full" onclick="buyMarketItem(10000, 'Smart Bin Sensor')">Claim Physical Asset</button>
+         </div>
+         <div class="market-card">
+           <div class="mc-icon">⚡</div><div class="mc-title">Energy Rebate Voucher</div>
+           <div class="mc-price">25,000 $RGX</div>
+           <button class="btn btn-primary btn-full" onclick="buyMarketItem(25000, 'Energy Rebate Voucher')">Mint Voucher</button>
          </div>
       </div>
     `;
