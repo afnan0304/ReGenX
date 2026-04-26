@@ -872,17 +872,24 @@ async function renderRider(mc, fullRender) {
   if(b) { b.style.display = pending.length ? 'inline-block' : 'none'; b.innerText = pending.length; }
 
   if (currentView === 'v-rd-dash') {
+    const tab = window._rdTab || 'route';
     if(fullRender) mc.innerHTML = `
+      <div class="mobile-tabs">
+        <button class="mobile-tab-btn ${tab==='route'?'active':''}" onclick="switchRdTab('route')">Route HUD</button>
+        <button class="mobile-tab-btn ${tab==='analytics'?'active':''}" onclick="switchRdTab('analytics')">AI Telemetry</button>
+      </div>
+
       <div class="two-col">
-        <div>
+        <div class="${tab !== 'route' ? 'desktop-only' : ''}">
           <h3 class="heading" style="margin-bottom:16px;">Active Tasks ${activeJobs.length > 1 ? `<span class="badge badge-amber" style="margin-left:8px;">Batching Enabled</span>` : ''}</h3>
           <div id="rd-act"></div>
-          ${activeJobs.length ? `<div class="glass-card" style="margin-top:24px;"><h4 style="margin-bottom:16px;">Route Progress</h4><div id="rd-tl" class="timeline"></div></div>` : ''}
+          <h3 class="heading" style="margin-bottom:16px; margin-top:24px;">Optimal Batch Map</h3>
+          <div id="rider-map" style="margin-bottom:24px;"></div>
+          ${activeJobs.length ? `<div class="glass-card"><h4 style="margin-bottom:16px;">Route Progress</h4><div id="rd-tl" class="timeline"></div></div>` : ''}
         </div>
-        <div>
-          <h3 class="heading" style="margin-bottom:16px;">Optimal Batch Map</h3>
-          <div id="rider-map"></div>
-          ${activeJobs.length ? `<div class="glass-card" style="margin-top:16px; background:var(--green-light); border-color:var(--green);">
+        <div class="${tab !== 'analytics' ? 'desktop-only' : ''}">
+          ${activeJobs.length ? `
+          <div class="glass-card" style="background:var(--green-light); border-color:var(--green); margin-bottom:16px;">
             <div class="between">
               <div>
                 <h4 style="color:var(--green-hover); margin-bottom:4px;">${activeJobs.length > 1 ? 'AI Batching Optimized' : 'Optimal Path Active'}</h4>
@@ -894,7 +901,7 @@ async function renderRider(mc, fullRender) {
               </div>
             </div>
           </div>
-          <div class="glass-card sensor-card" style="margin-top:16px; padding:16px; border-color:var(--border);">
+          <div class="glass-card sensor-card" style="margin-bottom:16px; padding:16px; border-color:var(--border);">
              <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase;">Live Environment Impact</div>
              <div class="between" style="margin-bottom:8px;">
                <div>🌧️ Weather</div>
@@ -909,7 +916,7 @@ async function renderRider(mc, fullRender) {
                <div style="font-weight:700; color:var(--text-muted);" id="rt-ai-adj">+0 Mins</div>
              </div>
           </div>
-          <div class="glass-card sensor-card" style="margin-top:16px; padding:16px; border-color:var(--blue);">
+          <div class="glass-card sensor-card" style="padding:16px; border-color:var(--blue);">
              <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase;">Vehicle Telemetry (Live)</div>
              <div class="between" style="margin-bottom:8px;">
                <div>🔋 Battery Level</div>
@@ -921,8 +928,13 @@ async function renderRider(mc, fullRender) {
              </div>
              <div class="between">
                <div>⚙️ AI ETA Confidence</div>
-               <div style="font-weight:700; color:var(--blue);">94.2%</div>
+               <div style="font-weight:700; color:var(--blue);" id="rt-conf">94.2%</div>
              </div>
+          </div>` : '<div class="empty-state">No active telemetry. Accept a job to see live data.</div>'}
+        </div>
+      </div>
+    `;
+    
     document.getElementById('rd-act').innerHTML = activeJobs.length ? activeJobs.map(o => buildOrderCard(o, 'rider')).join('') : `<div class="empty-state"><div class="empty-icon">📍</div><div class="empty-title">No Active Task</div><div class="empty-sub">Check available jobs to begin a route.</div></div>`;
     
     if (activeJobs.length) {
@@ -1008,11 +1020,7 @@ async function renderRider(mc, fullRender) {
 
   if (currentView === 'v-rd-jobs') {
     if(fullRender) mc.innerHTML = `<h3 class="heading" style="margin-bottom:24px;">Available Jobs</h3><div id="rd-jobs-list"></div>`;
-    if(activeJobs.length >= 3) {
-       document.getElementById('rd-jobs-list').innerHTML = `<div class="glass-card" style="border-color:var(--amber)"><h4 style="color:var(--amber)">Batch Limit Reached (3 Jobs)</h4><p class="muted">Finish your current routes to accept more.</p></div>`;
-    } else {
-       document.getElementById('rd-jobs-list').innerHTML = pending.length ? pending.map(o=>buildOrderCard(o,'rider')).join('') : '<div class="empty-state"><div class="empty-sub">No pending requests right now.</div></div>';
-    }
+    document.getElementById('rd-jobs-list').innerHTML = pending.length ? pending.map(o=>buildOrderCard(o,'rider')).join('') : '<div class="empty-state"><div class="empty-sub">No pending requests right now.</div></div>';
   }
 
   if (currentView === 'v-rd-hist') {
@@ -1021,10 +1029,12 @@ async function renderRider(mc, fullRender) {
   }
 }
 
+window.switchRdTab = function(t) { window._rdTab = t; refreshCurrentView(true); }
+
 window.riderAccept = function(id) {
   const o = getOrder(id); if(!o) return;
   o.status = 'assigned'; o.riderId = SESSION.id; o.riderName = SESSION.name;
-  saveOrder(o); showToast("✓ Route Accepted! Generating optimal path."); showView('v-rd-dash');
+  saveOrder(o); showToast("✓ Route Added to Batch!"); showView('v-rd-dash');
 }
 window.riderUpdate = function(id, st) {
   const o = getOrder(id); if(!o) return;
