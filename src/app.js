@@ -1,6 +1,7 @@
 // ══════════════════════════════════════
 // ReGenX v3 — Unified Premium Logic
 // ══════════════════════════════════════
+import { ESGReporter } from './esg-reporter.js';
 
 const STORAGE_KEY_PREFIX = "regenx-v3:";
 
@@ -609,6 +610,9 @@ async function renderProvider(mc, fullRender) {
                </select>
             </div>
             <div class="chart-container"><canvas id="pvChart"></canvas></div>
+            <button class="btn btn-outline-primary btn-full" style="margin-top:16px; border: 2px solid var(--blue); color: var(--blue);" onclick="window.ESGReporter.generateReport(SESSION, getAllOrders().filter(o => o.providerId === SESSION.id && o.status === 'completed'))">
+                📄 Export ESG PDF Report
+            </button>
           </div>
         </div>
         <div>
