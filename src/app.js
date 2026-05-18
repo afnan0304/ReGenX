@@ -1169,7 +1169,7 @@ async function renderRider(mc, fullRender) {
           </div>
           <div class="glass-card sensor-card" style="margin-bottom:16px; padding:16px; border-color:var(--border);">
              <div style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:12px; text-transform:uppercase;">🌍 Live Conditions</div>
-             <div class="between" style="margin-bottom:8px;"><div>🌧️ Weather</div><div style="font-weight:700; color:var(--text-muted);" id="rt-weather">Fetching...</div></div>
+             <div class="between" style="margin-bottom:8px;"><div>🌧️ Weather</div><div id="rt-weather" class="skeleton-loader"></div></div>
              <div class="between" style="margin-bottom:8px;"><div>🚗 Traffic</div><div style="font-weight:700; color:var(--green);" id="rt-traffic">Normal</div></div>
              <div class="between"><div>⏱️ Weather Delay</div><div style="font-weight:700; color:var(--text-muted);" id="rt-ai-adj">+0 Mins</div></div>
           </div>

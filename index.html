@@ -117,9 +117,45 @@
           <select class="form-input" id="login-account">
             <option value="">-- No accounts registered yet --</option>
           </select>
-        </div>
-        <button class="btn btn-primary btn-full" onclick="doLogin()" style="margin-top:10px;">Enter Dashboard →</button>
-      </div>
+       </div>
+
+<button class="btn btn-primary btn-full" onclick="doLogin()" style="margin-top:10px;">
+    Enter Dashboard →
+</button>
+
+<div style="
+display:flex;
+justify-content:center;
+align-items:center;
+margin-top:18px;
+">
+    <button onclick="resetAppData()" style="
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.12);
+        color: rgba(100,116,139,0.85);
+        font-size: 13px;
+        cursor: pointer;
+        padding: 8px 16px;
+        border-radius: 10px;
+        transition: all 0.25s ease;
+        font-family: 'Inter', sans-serif;
+        backdrop-filter: blur(6px);
+    "
+    onmouseover="
+        this.style.color='#ef4444';
+        this.style.borderColor='#ef4444';
+        this.style.transform='translateY(-1px)';
+    "
+    onmouseout="
+        this.style.color='rgba(100,116,139,0.85)';
+        this.style.borderColor='rgba(255,255,255,0.12)';
+        this.style.transform='translateY(0)';
+    ">
+        🗑 Reset All App Data
+    </button>
+</div>
+
+</div>
 
     </div>
 
@@ -131,17 +167,11 @@
     </div>
 
     <!-- RESET BUTTON -->
-    <div style="position:relative; z-index:1; text-align:center; margin-top:12px;">
-      <button onclick="resetAppData()" style="
-        background: none; border: none; color: rgba(100,116,139,0.6);
-        font-size: 12px; cursor: pointer; padding: 6px 12px;
-        border-radius: 8px; transition: all 0.2s; font-family: 'Inter', sans-serif;
-        text-decoration: underline; text-underline-offset: 2px;
-      " onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='rgba(100,116,139,0.6)'">
+   <div class="reset-wrapper">
+    <button onclick="resetAppData()" class="reset-btn">
         🗑 Reset All App Data
-      </button>
-    </div>
-
+    </button>
+</div>
   </div>
 
   <!-- ════════ APP SHELL ════════ -->
