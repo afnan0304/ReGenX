@@ -3289,3 +3289,48 @@ switchAuthTab('login');
 
 // ── Initialize Appwrite Cloud Sync Engine ──
 setTimeout(() => { if (window.CloudSync) window.CloudSync.init(); }, 1000);
+
+// Expose module-scoped functions to global scope for inline HTML handlers
+window.doRegister = doRegister;
+window.doLogin = doLogin;
+window.switchAuthTab = switchAuthTab;
+window.selectRole = selectRole;
+window.detectGPS = detectGPS;
+window.searchLocation = searchLocation;
+window.resetAppData = resetAppData;
+window.doLogout = doLogout;
+window.toggleTheme = toggleTheme;
+window.toggleSidebar = toggleSidebar;
+
+/**
+ * @function animateAuthEntry
+ * @description Triggers a GSAP entrance animation on the login box for desktop viewports.
+ * Enhances perceived performance and visual polish on non-touch devices.
+ */
+function animateAuthEntry() {
+  if (window.gsap && window.matchMedia('(min-width: 768px)').matches) {
+    gsap.from('.login-box', {
+      y: 40,
+      opacity: 0,
+      duration: 0.7,
+      ease: 'power3.out'
+    });
+  }
+}
+
+window.addEventListener('DOMContentLoaded', animateAuthEntry);
+
+/**
+ * @function detectDeviceClass
+ * @description Detects whether the user is on a touch (mobile) or pointer (desktop) device
+ * using the CSS media query API. Applies a data-device attribute to <body> so CSS can
+ * serve targeted layout rules without JS-in-CSS hacks.
+ * @returns {void}
+ */
+function detectDeviceClass() {
+  const isTouch = window.matchMedia('(pointer: coarse)').matches;
+  document.body.setAttribute('data-device', isTouch ? 'mobile' : 'desktop');
+}
+
+detectDeviceClass();
+window.detectDeviceClass = detectDeviceClass;
