@@ -10,14 +10,50 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 const stateFile = path.join(rootDir, 'data', 'realtime-state.json');
 const PORT = Number(process.env.PORT || 4173);
+const ALLOWED_ORIGINS = new Set(
+  String(process.env.ALLOWED_ORIGINS || 'http://localhost:4173,http://127.0.0.1:4173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+const REALTIME_AUTH_TOKEN = String(process.env.REALTIME_AUTH_TOKEN || '');
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  return ALLOWED_ORIGINS.has(origin);
+}
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: true,
+    origin: (origin, callback) => {
+      if (isAllowedOrigin(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error('Origin not allowed by realtime server CORS policy'));
+    },
     credentials: true
   }
+});
+
+io.use((socket, next) => {
+  if (!REALTIME_AUTH_TOKEN) {
+    next(new Error('Realtime authentication is not configured'));
+    return;
+  }
+
+  const authToken =
+    socket.handshake?.auth?.token ||
+    socket.handshake?.headers?.['x-realtime-token'];
+
+  if (authToken !== REALTIME_AUTH_TOKEN) {
+    next(new Error('Unauthorized realtime connection'));
+    return;
+  }
+
+  next();
 });
 
 const initialState = {
