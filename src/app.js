@@ -6,6 +6,7 @@ import { TrustProtocol } from './trust.js';
 import { YieldOptimizer } from './yield-optimizer.js';
 import { RouteOptimizer } from './route-optimizer.js';
 import { AuditPortal } from './audit-portal.js';
+import { ReGenXRealtime } from './realtime-sync.js';
 import { CloudSync } from './cloud-sync.js';
 
 const STORAGE_KEY_PREFIX = "regenx-v3:";
@@ -81,7 +82,18 @@ const SHIFTS = ['Morning Shift (08:00 - 12:00)', 'Evening Shift (16:00 - 20:00)'
 // ── DB HELPER ──
 const DB = {
   get: (key) => { try { const r = window.localStorage.getItem(STORAGE_KEY_PREFIX + key); return r ? JSON.parse(r) : null; } catch { return null; } },
-  set: (key, val) => { try { window.localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val)); return true; } catch { return false; } },
+  set: (key, val, options = {}) => { try {
+    window.localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val));
+    if (!options.silent && ReGenXRealtime) {
+      ReGenXRealtime.syncStorageMutation({
+        updates: [{ key: STORAGE_KEY_PREFIX + key, value: val, action: 'set' }],
+        rooms: options.rooms,
+        eventType: options.eventType || 'KPI_UPDATED',
+        meta: options.meta || {}
+      });
+    }
+    return true;
+  } catch { return false; } },
   list: (prefix) => {
     try {
       const keys = [];
@@ -93,6 +105,25 @@ const DB = {
     } catch { return []; }
   }
 };
+
+function getRealtimeRoomsForRole(role) {
+  const rooms = ['network_room'];
+  if (role === 'provider') rooms.push('providers_room');
+  if (role === 'rider') rooms.push('riders_room');
+  if (role === 'plant') rooms.push('plants_room');
+  rooms.push('admin_room');
+  return Array.from(new Set(rooms));
+}
+
+function publishOperationalEvent(type, updates = [], meta = {}, rooms = null) {
+  if (!ReGenXRealtime) return;
+  ReGenXRealtime.emitOperationalEvent({
+    type,
+    rooms: rooms || getRealtimeRoomsForRole(SESSION.role),
+    updates,
+    meta
+  });
+}
 
 /**
  * Load trust ledger events from localStorage.
@@ -113,7 +144,10 @@ function loadTrustLedger() {
  * @param {Array<Object>} events - Ledger events.
  */
 function saveTrustLedger(events) {
-  try { window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(events)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(events));
+    ReGenXRealtime?.syncRawKey(TRUST_LEDGER_KEY, events, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -276,7 +310,10 @@ function loadEsgAlerts() {
  * @param {Array<Object>} alerts - Alerts to save.
  */
 function saveEsgAlerts(alerts) {
-  try { window.localStorage.setItem(ESG_ALERTS_KEY, JSON.stringify(alerts)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(ESG_ALERTS_KEY, JSON.stringify(alerts));
+    ReGenXRealtime?.syncRawKey(ESG_ALERTS_KEY, alerts, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -417,7 +454,10 @@ function loadCreditLedger() {
  * @param {Array<Object>} entries - Ledger entries.
  */
 function saveCreditLedger(entries) {
-  try { window.localStorage.setItem(CREDIT_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(CREDIT_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(CREDIT_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -496,7 +536,10 @@ function loadSlaLedger() {
  * @param {Array<Object>} entries - SLA entries.
  */
 function saveSlaLedger(entries) {
-  try { window.localStorage.setItem(SLA_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(SLA_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(SLA_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -597,7 +640,10 @@ function loadEnergyLedger() {
  * @param {Array<Object>} entries - Energy entries.
  */
 function saveEnergyLedger(entries) {
-  try { window.localStorage.setItem(ENERGY_LEDGER_KEY, JSON.stringify(entries)); } catch { /* ignore */ }
+  try {
+    window.localStorage.setItem(ENERGY_LEDGER_KEY, JSON.stringify(entries));
+    ReGenXRealtime?.syncRawKey(ENERGY_LEDGER_KEY, entries, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'plants_room'] });
+  } catch { /* ignore */ }
 }
 
 /**
@@ -883,6 +929,7 @@ window.resetAppData = function() {
     if (k && k.startsWith(STORAGE_KEY_PREFIX)) keysToRemove.push(k);
   }
   keysToRemove.forEach(k => window.localStorage.removeItem(k));
+  ReGenXRealtime?.clearOperationalState(keysToRemove);
   // Also clear theme preference
   window.localStorage.removeItem('regenx-theme');
   // Reload fresh
@@ -900,8 +947,10 @@ window.fetchWeather = async function(lat, lng) {
 
 // ── STATE ──
 let SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+window.SESSION = SESSION;
 let selectedRole = 'provider';
 let currentView = '';
+window.currentView = currentView;
 let rMap = null; // Rider map instance
 let autoRefreshTimer = null;
 
@@ -1254,6 +1303,7 @@ window.fundProject = function() {
 
 function executeLogin(acc) {
   SESSION = acc;
+  window.SESSION = SESSION;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app-shell').classList.add('active');
   
@@ -1295,6 +1345,7 @@ function executeLogin(acc) {
   
   buildSidebar();
   autoRefreshTimer = setInterval(() => refreshCurrentView(), 15000);
+  ReGenXRealtime?.setSession(SESSION);
 }
 
 
@@ -1307,6 +1358,9 @@ window.doLogout = function() {
   if (plChartInstance) { plChartInstance.destroy(); plChartInstance = null; }
   if (rMap) { rMap.remove(); rMap = null; }
   SESSION = { role: null, name: '', org: '', uid: '', lat: null, lng: null };
+  window.SESSION = SESSION;
+  window.currentView = '';
+  ReGenXRealtime?.setSession(null);
   document.getElementById('app-shell').classList.remove('active');
   document.getElementById('login-screen').style.display = 'flex';
   switchAuthTab('login');
@@ -1370,6 +1424,7 @@ function buildSidebar() {
 
 window.showView = function(viewId) {
   currentView = viewId;
+  window.currentView = currentView;
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const btn = document.getElementById('nav-' + viewId);
   if(btn) btn.classList.add('active');
@@ -1396,10 +1451,7 @@ window.toggleSidebar = function(force) {
 function getAllOrders() { return DB.list('ord:').map(k => DB.get(k)).filter(Boolean).sort((a,b)=>b.ts-a.ts); }
 function getOrder(id) { return DB.get('ord:'+id); }
 function saveOrder(o) { 
-  DB.set('ord:'+o.id, o); 
-  if (window.CloudSync && window.CloudSync.isLive) {
-      window.CloudSync.pushDocument('orders', o);
-  }
+  DB.set('ord:'+o.id, o, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED' });
 }
 function getAllLogs() { return DB.list('log:').map(k => DB.get(k)).filter(Boolean).sort((a,b)=>b.ts-a.ts); }
 
@@ -2537,7 +2589,7 @@ window.clearAllHistory = function(role) {
     if(role === 'rider') return o.riderId === SESSION.id && o.status === 'completed';
     return false;
   });
-  orders.forEach(o => window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'ord:' + o.id));
+  orders.forEach(o => ReGenXRealtime?.removeOrderKey(o.id, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED' }));
   showToast("✓ History Cleared");
   refreshCurrentView(true);
 }
@@ -2566,17 +2618,26 @@ window.submitPvRequest = function() {
   saveOrder(o);
   addSlaEntry(o);
   recordTrustEvent(o, 'requested', 'provider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('DISPATCH_CREATED', [], {
+    toast: `New dispatch created for ${nearest.org}.`,
+    statusLabel: 'Dispatch live'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   showToast(`✓ Dispatched! Routed to ${nearest.org} (${minDist.toFixed(1)}km away).`);
   showView('v-pv-dash');
 }
 
 window.cancelOrder = function(id) {
   const o = getOrder(id); if(!o) return;
-  o.status = 'rejected'; saveOrder(o); showToast("Cancelled."); refreshCurrentView();
+  o.status = 'rejected'; saveOrder(o);
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Dispatch #${o.id.slice(-6).toUpperCase()} was cancelled.`,
+    statusLabel: 'Cancelled'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
+  showToast("Cancelled."); refreshCurrentView();
 }
 
 window.deleteOrder = function(id) {
-  window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'ord:' + id);
+  ReGenXRealtime?.removeOrderKey(id, { rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room'], eventType: 'KPI_UPDATED', meta: { statusLabel: 'Order removed' } });
   showToast("✓ Record Deleted");
   refreshCurrentView(true);
 }
@@ -2980,6 +3041,10 @@ window.riderAccept = function(id) {
   saveOrder(o);
   updateSlaEntry(o.id, { status: 'assigned' });
   recordTrustEvent(o, 'assigned', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Rider ${SESSION.name} accepted dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Route assigned'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   showToast("✓ Route Added to Batch!");
   showView('v-rd-dash');
 }
@@ -2988,6 +3053,10 @@ window.riderUpdate = function(id, st) {
   o.status = st; saveOrder(o);
   updateSlaEntry(o.id, { status: st });
   recordTrustEvent(o, st, 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('KPI_UPDATED', [], {
+    toast: `Dispatch #${o.id.slice(-6).toUpperCase()} moved to ${st.replace('_', ' ')}.`,
+    statusLabel: 'Route moving'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   refreshCurrentView();
 }
 window.openPickupConfirm = function(id) {
@@ -3008,6 +3077,10 @@ window.confirmPickup = function(id) {
   saveOrder(o);
   updateSlaEntry(o.id, { pickupTs: ts(), status: 'picked_up' });
   recordTrustEvent(o, 'picked_up', 'rider', { lat: SESSION.lat, lng: SESSION.lng });
+  publishOperationalEvent('PICKUP_CONFIRMED', [], {
+    toast: `Pickup confirmed for dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Pickup live'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   closeModal();
   refreshCurrentView();
 }
@@ -3127,7 +3200,12 @@ window.openSettings = function() {
 
 window.deleteAccount = function() {
   if(confirm("Are you sure you want to permanently delete your account? This action cannot be undone.")) {
-    window.localStorage.removeItem(STORAGE_KEY_PREFIX + 'acc:' + SESSION.id);
+    ReGenXRealtime?.syncStorageMutation({
+      updates: [{ key: STORAGE_KEY_PREFIX + 'acc:' + SESSION.id, action: 'remove' }],
+      rooms: ['network_room', 'admin_room'],
+      eventType: 'KPI_UPDATED',
+      meta: { statusLabel: 'Account deleted' }
+    });
     closeModal();
     doLogout();
     refreshLoginDropdown();
@@ -3467,6 +3545,10 @@ window.confirmPlantReceipt = function(id) {
       ts: ts()
     });
   }
+  publishOperationalEvent('DELIVERY_COMPLETED', [], {
+    toast: `Plant confirmed receipt for dispatch #${o.id.slice(-6).toUpperCase()}.`,
+    statusLabel: 'Delivery complete'
+  }, ['network_room', 'providers_room', 'riders_room', 'plants_room', 'admin_room']);
   const route = getOrderRouteEndpoints(o);
   if (route.start && route.end) {
     const distanceKm = parseFloat(distanceKm(route.start.lat, route.start.lng, route.end.lat, route.end.lng).toFixed(1));
@@ -3859,6 +3941,11 @@ window.iotDispatchFromBin = function(id) {
   showToast('⚠ Fill in quantity and submit to dispatch a collection for this bin.');
 };
 
+window.refreshCurrentView = refreshCurrentView;
+window.refreshLoginDropdown = refreshLoginDropdown;
+window.startGreenWall = startGreenWall;
+window.syncIoTAlertBadge = syncIoTAlertBadge;
+
 // ── INIT ──
 (function seedDB() {
   if (!DB.get('iot-bins')) {
@@ -3877,6 +3964,7 @@ document.getElementById('login-screen').style.display = 'flex';
 switchAuthTab('login');
 
 // ── Initialize Appwrite Cloud Sync Engine ──
+setTimeout(() => { ReGenXRealtime?.init(); ReGenXRealtime?.requestSnapshot?.(); }, 1000);
 setTimeout(() => { if (window.CloudSync) window.CloudSync.init(); }, 1000);
 
 // Expose module-scoped functions to global scope for inline HTML handlers
