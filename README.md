@@ -132,7 +132,7 @@ Ensure accessibility and mobile optimization
 
 ```
 
-ReGenX/
+├── ReGenX/
 ├── .github/                  
 │   ├── ISSUE_TEMPLATE/
 │   └── PULL_REQUEST_TEMPLATE/
