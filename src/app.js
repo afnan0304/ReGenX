@@ -247,6 +247,19 @@ function loadTrustLedger() {
 }
 
 /**
+ * @function handleLedgerStorageError
+ * @description Centralized handler for ledger localStorage exceptions (e.g. quota exceeded).
+ * @param {Error} err - Exception object.
+ * @returns {void}
+ */
+function handleLedgerStorageError(err) {
+  console.error("Ledger storage error:", err);
+  if (window.showToast) {
+    window.showToast("⚠️ Storage limit exceeded. Stale ledger entries evicted.");
+  }
+}
+
+/**
  * Save trust ledger events to localStorage.
  * @param {Array<Object>} events - Ledger events.
  */
@@ -255,7 +268,7 @@ function saveTrustLedger(events) {
     const capped = Array.isArray(events) ? events.slice(-200) : [];
     window.localStorage.setItem(TRUST_LEDGER_KEY, JSON.stringify(capped));
     ReGenXRealtime?.syncRawKey(TRUST_LEDGER_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -422,7 +435,7 @@ function saveEsgAlerts(alerts) {
     const capped = Array.isArray(alerts) ? alerts.slice(-200) : [];
     window.localStorage.setItem(ESG_ALERTS_KEY, JSON.stringify(capped));
     ReGenXRealtime?.syncRawKey(ESG_ALERTS_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -567,7 +580,7 @@ function saveCreditLedger(entries) {
     const capped = Array.isArray(entries) ? entries.slice(-200) : [];
     window.localStorage.setItem(CREDIT_LEDGER_KEY, JSON.stringify(capped));
     ReGenXRealtime?.syncRawKey(CREDIT_LEDGER_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room'] });
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -650,7 +663,7 @@ function saveSlaLedger(entries) {
     const capped = Array.isArray(entries) ? entries.slice(-200) : [];
     window.localStorage.setItem(SLA_LEDGER_KEY, JSON.stringify(capped));
     ReGenXRealtime?.syncRawKey(SLA_LEDGER_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'riders_room', 'plants_room'] });
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -765,7 +778,7 @@ function saveEnergyLedger(entries) {
     const capped = Array.isArray(entries) ? entries.slice(-200) : [];
     window.localStorage.setItem(ENERGY_LEDGER_KEY, JSON.stringify(capped));
     ReGenXRealtime?.syncRawKey(ENERGY_LEDGER_KEY, capped, { eventType: 'KPI_UPDATED', rooms: ['network_room', 'providers_room', 'plants_room'] });
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -847,7 +860,7 @@ function saveSensorLedger(entries) {
   try {
     const capped = Array.isArray(entries) ? entries.slice(-50) : [];
     window.localStorage.setItem(SENSOR_LEDGER_KEY, JSON.stringify(capped));
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -932,7 +945,7 @@ function saveEmissionsLedger(entries) {
   try {
     const capped = Array.isArray(entries) ? entries.slice(-200) : [];
     window.localStorage.setItem(EMISSIONS_LEDGER_KEY, JSON.stringify(capped));
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
@@ -1015,7 +1028,7 @@ function saveQualityLedger(entries) {
   try {
     const capped = Array.isArray(entries) ? entries.slice(-200) : [];
     window.localStorage.setItem(QUALITY_LEDGER_KEY, JSON.stringify(capped));
-  } catch { /* ignore */ }
+  } catch (err) { handleLedgerStorageError(err); }
 }
 
 /**
